@@ -1,0 +1,13 @@
+# OpenSCAD render/build output
+.renders/
+*.stl
+*.3mf
+*.amf
+*.csg
+*.echo
+*.png
+
+# ...except reference scans of the original designs
+!designs/**/reference/*.stl
+
+.DS_Store
