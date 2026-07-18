@@ -1,0 +1,889 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Spell Tiles — CAD Preview</title>
+  <script type="importmap">
+    {
+      "imports": {
+        "three": "https://cdn.jsdelivr.net/npm/three@0.167.0/build/three.module.js",
+        "three/addons/": "https://cdn.jsdelivr.net/npm/three@0.167.0/examples/jsm/"
+      }
+    }
+  </script>
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    :root {
+      --bg:      #0d1117;
+      --surface: #161b22;
+      --border:  #30363d;
+      --text:    #e6edf3;
+      --muted:   #8b949e;
+      --accent:  #58a6ff;
+      --mono:    'SFMono-Regular', Consolas, 'Liberation Mono', monospace;
+    }
+
+    body {
+      background: var(--bg);
+      color: var(--text);
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+      font-size: 14px;
+      height: 100dvh;
+      display: flex;
+      flex-direction: column;
+      overflow: hidden;
+    }
+
+    header {
+      display: flex;
+      align-items: baseline;
+      gap: 12px;
+      padding: 10px 18px;
+      border-bottom: 1px solid var(--border);
+      flex-shrink: 0;
+    }
+    header h1 { font-size: 15px; font-weight: 600; }
+    header p  { font-size: 12px; color: var(--muted); }
+
+    main {
+      display: grid;
+      grid-template-columns: 240px 1fr;
+      flex: 1;
+      overflow: hidden;
+    }
+
+    /* ── Controls panel ──────────────────────────────────────────── */
+    .controls {
+      border-right: 1px solid var(--border);
+      overflow-y: auto;
+      padding: 16px;
+      display: flex;
+      flex-direction: column;
+      gap: 16px;
+    }
+
+    .field { display: flex; flex-direction: column; gap: 6px; }
+    .field label {
+      font-size: 11px;
+      font-weight: 600;
+      text-transform: uppercase;
+      letter-spacing: 0.04em;
+      color: var(--muted);
+    }
+    .field .hint { font-size: 11px; color: var(--muted); margin-top: -2px; }
+
+    .field input[type="text"],
+    .field input[type="number"],
+    .field select {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 6px;
+      color: var(--text);
+      padding: 7px 9px;
+      font-size: 14px;
+      font-family: inherit;
+    }
+    .field input[type="text"] { font-size: 20px; text-align: center; letter-spacing: 0.05em; }
+    .field input:focus, .field select:focus {
+      outline: none;
+      border-color: var(--accent);
+    }
+
+    .mode-options { display: flex; flex-direction: column; gap: 6px; }
+    .mode-option {
+      display: flex;
+      align-items: flex-start;
+      gap: 8px;
+      padding: 8px 10px;
+      border: 1px solid var(--border);
+      border-radius: 6px;
+      cursor: pointer;
+      transition: background 0.1s, border-color 0.1s;
+    }
+    .mode-option:hover { background: var(--surface); }
+    .mode-option.active { border-color: var(--accent); background: var(--surface); }
+    .mode-option input { margin-top: 3px; accent-color: var(--accent); }
+    .mode-option .mtitle { font-weight: 500; font-size: 13px; }
+    .mode-option .mdesc { font-size: 11px; color: var(--muted); margin-top: 1px; }
+
+    .size-row { display: flex; gap: 10px; }
+    .size-row .field { flex: 1; }
+
+    /* ── 3-D Viewer ──────────────────────────────────────────────── */
+    .viewer {
+      position: relative;
+      overflow: hidden;
+    }
+
+    #preview {
+      display: block;
+      width: 100%;
+      height: 100%;
+    }
+
+    #debug-log {
+      display: none;
+      position: absolute;
+      top: 8px; left: 8px; right: 8px;
+      max-height: 140px;
+      overflow-y: auto;
+      background: rgba(0,0,0,0.78);
+      border: 1px solid var(--border);
+      border-radius: 5px;
+      padding: 6px 8px 6px 8px;
+      font-family: var(--mono);
+      font-size: 11px;
+      color: #adbac7;
+      pointer-events: none;
+      white-space: pre-wrap;
+      word-break: break-all;
+    }
+
+    #btn-copy-log {
+      position: absolute;
+      top: 12px; right: 12px;
+      pointer-events: all;
+      background: var(--border);
+      color: var(--text);
+      border: none;
+      border-radius: 4px;
+      padding: 2px 8px;
+      font-size: 10px;
+      font-family: var(--mono);
+      cursor: pointer;
+      z-index: 1;
+      transition: background 0.1s, color 0.1s;
+    }
+    #btn-copy-log:hover { background: var(--accent); color: #0d1117; }
+
+    .viewer-footer {
+      position: absolute;
+      bottom: 0; left: 0; right: 0;
+      padding: 14px 16px 12px;
+      background: linear-gradient(transparent, rgba(13,17,23,0.85) 40%);
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      pointer-events: none;
+    }
+
+    #status {
+      font-size: 12px;
+      color: var(--muted);
+      transition: color 0.15s;
+    }
+    #status.busy  { color: var(--accent); }
+    #status.error { color: #f85149; }
+    #status.ok    { color: #3fb950; }
+
+    #btn-download {
+      pointer-events: all;
+      background: var(--accent);
+      color: #0d1117;
+      border: none;
+      border-radius: 6px;
+      padding: 6px 14px;
+      font-size: 13px;
+      font-weight: 600;
+      cursor: pointer;
+      transition: background 0.15s, opacity 0.15s;
+    }
+    #btn-download:disabled { opacity: 0.35; cursor: not-allowed; }
+    #btn-download:not(:disabled):hover { background: #79c0ff; }
+  </style>
+</head>
+<body>
+
+<header>
+  <h1>Spell Tiles</h1>
+  <p>CAD Preview — serve from the repo root with any HTTP server, e.g. <code>python3 -m http.server 8080</code>, then open <code>/designs/spell_tiles/preview/preview.html</code></p>
+</header>
+
+<main>
+  <nav class="controls" id="controls-panel">
+    <div class="field">
+      <label>View</label>
+      <div class="mode-options" id="view-options">
+        <label class="mode-option" data-view="tile">
+          <input type="radio" name="view" value="tile" checked>
+          <span><div class="mtitle">Single Tile</div><div class="mdesc">One tile with the letter below.</div></span>
+        </label>
+        <label class="mode-option" data-view="plate">
+          <input type="radio" name="view" value="plate">
+          <span><div class="mtitle">Full Plate</div><div class="mdesc">All 110 tiles at once, 22mm pitch. Slower to render.</div></span>
+        </label>
+      </div>
+    </div>
+
+    <div class="field" id="letter-field">
+      <label for="in-letter">Letter</label>
+      <input type="text" id="in-letter" value="A" maxlength="6" autocomplete="off" spellcheck="false">
+      <div class="hint">Blank or "?" = no letter (wildcard tile)</div>
+    </div>
+
+    <div class="field" id="letterset-field" style="display:none">
+      <label for="in-letterset">Letter set</label>
+      <select id="in-letterset">
+        <option value="letters_german">German (unofficial, SPELL-style)</option>
+        <option value="letters_english">English (official SPELL list)</option>
+      </select>
+    </div>
+
+    <div class="field">
+      <label>Mode</label>
+      <div class="mode-options" id="mode-options">
+        <label class="mode-option" data-mode="pocket">
+          <input type="radio" name="mode" value="pocket" checked>
+          <span><div class="mtitle">Pocket</div><div class="mdesc">Engraved recess only, no fill. Single body, blind-draw safe.</div></span>
+        </label>
+        <label class="mode-option" data-mode="inlay">
+          <input type="radio" name="mode" value="inlay">
+          <span><div class="mtitle">Inlay</div><div class="mdesc">Base + flush plug shown in 2 colors, for AMS/dual-material printing.</div></span>
+        </label>
+        <label class="mode-option" data-mode="flush">
+          <input type="radio" name="mode" value="flush">
+          <span><div class="mtitle">Flush</div><div class="mdesc">Base and plug fused, single body, no visible cut.</div></span>
+        </label>
+      </div>
+    </div>
+
+    <div class="size-row">
+      <div class="field">
+        <label for="in-size">Letter size</label>
+        <input type="number" id="in-size" value="10" min="4" max="18" step="0.5">
+      </div>
+      <div class="field">
+        <label for="in-depth">Depth</label>
+        <input type="number" id="in-depth" value="1.2" min="0.4" max="1.8" step="0.1">
+      </div>
+    </div>
+  </nav>
+
+  <div class="viewer">
+    <canvas id="preview"></canvas>
+    <div id="debug-log"></div>
+    <button id="btn-copy-log" style="display:none" title="Copy debug log">Copy</button>
+    <div class="viewer-footer">
+      <span id="status">Loading OpenSCAD WASM…</span>
+      <button id="btn-download" disabled>⬇ Download STL</button>
+    </div>
+  </div>
+</main>
+
+<script type="module">
+import * as THREE        from 'three';
+import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
+import { STLLoader }     from 'three/addons/loaders/STLLoader.js';
+import { ThreeMFLoader }  from 'three/addons/loaders/3MFLoader.js';
+
+// ── Pre-generated plates ────────────────────────────────────────────────────
+// Full-plate renders go through openscad-wasm's CGAL-only backend (no
+// Manifold support in that build -- see preview-worker.js), so they can take
+// 1-6 minutes. The 6 "expected" combos (2 letter sets x 3 modes, at the
+// default letter size/depth) are pre-rendered offline with real desktop
+// openscad-nightly (has Manifold, seconds not minutes) and committed as
+// static files in pregen/ -- when the current settings match one exactly,
+// load that directly and skip the WASM worker entirely. Inlay pregens are a
+// single .3mf with per-triangle color (base + plug baked into one file, no
+// manual two-STL alignment needed); pocket/flush are plain .stl.
+const PREGEN_SIZE = 10;
+const PREGEN_DEPTH = 1.2;
+function pregenPath(p) {
+  if (p.view !== 'plate' || p.size !== PREGEN_SIZE || p.depth !== PREGEN_DEPTH) return null;
+  const lang = p.letterSet === 'letters_english' ? 'english' : 'german';
+  const ext = p.mode === 'inlay' ? '3mf' : 'stl';
+  return `./pregen/${lang}-${p.mode}.${ext}`;
+}
+
+// ── Read/persist form state ─────────────────────────────────────────────────
+const letterEl    = document.getElementById('in-letter');
+const letterSetEl = document.getElementById('in-letterset');
+const sizeEl      = document.getElementById('in-size');
+const depthEl     = document.getElementById('in-depth');
+const modesEl     = document.getElementById('mode-options');
+const viewsEl     = document.getElementById('view-options');
+const letterField = document.getElementById('letter-field');
+const letterSetField = document.getElementById('letterset-field');
+
+const saved = JSON.parse(localStorage.getItem('spelltile-preview-params') ?? '{}');
+if (saved.letter    !== undefined) letterEl.value = saved.letter;
+if (saved.size       !== undefined) sizeEl.value   = saved.size;
+if (saved.depth      !== undefined) depthEl.value  = saved.depth;
+if (saved.letterSet) letterSetEl.value = saved.letterSet;
+if (saved.mode) {
+  const r = modesEl.querySelector(`input[value="${saved.mode}"]`);
+  if (r) r.checked = true;
+}
+if (saved.view) {
+  const r = viewsEl.querySelector(`input[value="${saved.view}"]`);
+  if (r) r.checked = true;
+}
+
+function syncModeStyles() {
+  for (const group of [modesEl, viewsEl]) {
+    for (const opt of group.querySelectorAll('.mode-option')) {
+      opt.classList.toggle('active', opt.querySelector('input').checked);
+    }
+  }
+  const isPlate = viewsEl.querySelector('input[name="view"]:checked').value === 'plate';
+  letterField.style.display    = isPlate ? 'none' : '';
+  letterSetField.style.display = isPlate ? '' : 'none';
+}
+syncModeStyles();
+
+function currentParams() {
+  return {
+    view:      viewsEl.querySelector('input[name="view"]:checked').value,
+    letter:    letterEl.value,
+    letterSet: letterSetEl.value,
+    mode:      modesEl.querySelector('input[name="mode"]:checked').value,
+    size:      parseFloat(sizeEl.value) || 10,
+    depth:     parseFloat(depthEl.value) || 1.2,
+  };
+}
+
+function onFormChange() {
+  syncModeStyles();
+  localStorage.setItem('spelltile-preview-params', JSON.stringify(currentParams()));
+  scheduleRender();
+}
+
+letterEl.addEventListener('input', onFormChange);
+letterSetEl.addEventListener('change', onFormChange);
+sizeEl.addEventListener('input', onFormChange);
+depthEl.addEventListener('input', onFormChange);
+modesEl.addEventListener('change', onFormChange);
+viewsEl.addEventListener('change', onFormChange);
+
+// ── OpenSCAD worker ───────────────────────────────────────────────────────────
+const debugEl  = document.getElementById('debug-log');
+const copyBtn  = document.getElementById('btn-copy-log');
+const debugMode = new URLSearchParams(location.search).has('debug');
+if (debugMode) {
+  debugEl.style.display = 'block';
+  copyBtn.style.display = 'block';
+}
+function dbg(msg) {
+  if (!debugMode) return;
+  debugEl.textContent += msg + '\n';
+  debugEl.scrollTop = debugEl.scrollHeight;
+}
+copyBtn.addEventListener('click', () => {
+  const text = debugEl.textContent;
+  const confirm = () => { copyBtn.textContent = 'Copied!'; setTimeout(() => copyBtn.textContent = 'Copy', 1500); };
+  if (navigator.clipboard) {
+    navigator.clipboard.writeText(text).then(confirm);
+  } else {
+    const ta = Object.assign(document.createElement('textarea'), { value: text });
+    ta.style.cssText = 'position:fixed;opacity:0';
+    document.body.appendChild(ta);
+    ta.select();
+    document.execCommand('copy');
+    document.body.removeChild(ta);
+    confirm();
+  }
+});
+
+const worker = new Worker('./preview-worker.js');
+
+worker.onerror = (e) => {
+  dbg('WORKER ERROR: ' + (e.message || JSON.stringify(e)));
+  setStatus('Worker error — add ?debug to URL for details', 'error');
+};
+
+let lastModel = null;
+let renderTimer = null;
+let rendering = false;
+let pendingRender = false;
+
+const statusEl = document.getElementById('status');
+const dlBtn    = document.getElementById('btn-download');
+
+function setStatus(text, cls = '') {
+  statusEl.textContent = text;
+  statusEl.className = cls;
+}
+
+worker.onmessage = ({ data }) => {
+  if (data.type === 'result') {
+    lastModel = { parts: data.parts, params: data.params };
+    dlBtn.disabled = false;
+    loadParts(data.parts);
+    setStatus('Ready — drag to rotate, scroll to zoom', 'ok');
+    finishRender();
+  } else if (data.type === 'error') {
+    dbg('[error] ' + data.message);
+    setStatus('Error: ' + data.message, 'error');
+    finishRender();
+  } else if (data.type === 'log') {
+    dbg(data.text);
+  }
+};
+
+function finishRender() {
+  rendering = false;
+  if (pendingRender) { pendingRender = false; triggerRender(); }
+}
+
+function triggerRender() {
+  if (rendering) { pendingRender = true; return; }
+  rendering = true;
+  const p = currentParams();
+  const pregen = pregenPath(p);
+
+  if (pregen) {
+    const lang = p.letterSet === 'letters_english' ? 'English' : 'German';
+    setStatus(`Loading pre-generated plate (${lang}, ${p.mode})…`, 'busy');
+    loadPregenObject(pregen)
+      .then(() => {
+        lastModel = { pregenUrl: pregen, params: p };
+        dlBtn.disabled = false;
+        setStatus('Ready — drag to rotate, scroll to zoom', 'ok');
+      })
+      .catch(err => {
+        dbg('[pregen] ' + (err.message || err));
+        setStatus('Pregen load failed: ' + (err.message || err), 'error');
+      })
+      .finally(finishRender);
+    return;
+  }
+
+  const what = p.view === 'plate'
+    ? `full plate (${p.letterSet === 'letters_english' ? 'English' : 'German'}) — ` +
+      (p.mode === 'inlay' ? 'expect ~3-6 min (2 passes)…' : 'expect ~1-2 min…')
+    : `"${p.letter || '(blank)'}" — ${p.mode}…`;
+  setStatus(`Rendering ${what}`, 'busy');
+  worker.postMessage({ type: 'render', params: p });
+}
+
+function scheduleRender() {
+  clearTimeout(renderTimer);
+  renderTimer = setTimeout(triggerRender, 400);
+}
+
+// ── Three.js setup ────────────────────────────────────────────────────────────
+const canvas   = document.getElementById('preview');
+const renderer = new THREE.WebGLRenderer({ canvas, antialias: true });
+renderer.setPixelRatio(window.devicePixelRatio);
+
+const scene  = new THREE.Scene();
+scene.background = new THREE.Color(0x0d1117);
+
+const camera = new THREE.PerspectiveCamera(50, 1, 0.1, 20000);
+camera.position.set(30, 25, 35);
+
+scene.add(new THREE.AmbientLight(0xffffff, 0.5));
+const key = new THREE.DirectionalLight(0xffffff, 0.9);
+key.position.set(30, 40, 20);
+scene.add(key);
+const fill = new THREE.DirectionalLight(0x8eb8ff, 0.3);
+fill.position.set(-20, -10, -25);
+scene.add(fill);
+
+// Bambu Lab P1S/P2S build plate: 256 x 256mm. Previously this was a fixed,
+// arbitrary 200mm reference grid unrelated to any real printer -- smaller
+// than the 218x240mm full plate, making a correctly-sized model look like
+// it didn't fit. The plate does fit (38mm slack in X, 16mm in Y); the grid
+// just wasn't representing anything real. Models are always centered at the
+// origin (see presentGroup), matching this grid/outline being centered too.
+const BED_SIZE = 256;
+const grid = new THREE.GridHelper(BED_SIZE, 16, 0x21262d, 0x21262d);
+scene.add(grid);
+
+const bedHalf = BED_SIZE / 2;
+const bedOutline = new THREE.LineLoop(
+  new THREE.BufferGeometry().setFromPoints([
+    new THREE.Vector3(-bedHalf, 0, -bedHalf),
+    new THREE.Vector3(bedHalf, 0, -bedHalf),
+    new THREE.Vector3(bedHalf, 0, bedHalf),
+    new THREE.Vector3(-bedHalf, 0, bedHalf),
+  ]),
+  new THREE.LineBasicMaterial({ color: 0x58a6ff, transparent: true, opacity: 0.6 }),
+);
+scene.add(bedOutline);
+
+const controls = new OrbitControls(camera, renderer.domElement);
+controls.enableDamping = true;
+controls.dampingFactor = 0.08;
+controls.minDistance = 5;
+controls.maxDistance = 1000;
+
+let lastW = 0, lastH = 0;
+function resize() {
+  const w = canvas.clientWidth, h = canvas.clientHeight;
+  if (w !== lastW || h !== lastH) {
+    lastW = w; lastH = h;
+    renderer.setSize(w, h, false);
+    camera.aspect = w / h;
+    camera.updateProjectionMatrix();
+  }
+}
+
+(function animate() {
+  requestAnimationFrame(animate);
+  resize();
+  controls.update();
+  renderer.render(scene, camera);
+})();
+
+// ── OFF parser + multi-part loader ───────────────────────────────────────────
+// The worker renders one OFF per part (base / plug in "inlay" mode, or a
+// single part otherwise) since OpenSCAD's OFF export doesn't carry color().
+// Both the live Three.js preview (offToMesh, below) and the STL export used
+// by the download button (trianglesToStl, in the Download section) share
+// offToTrianglePositions() for triangulation.
+let currentGroup = null;
+
+function disposeGroup(g) {
+  g.traverse(child => {
+    if (!child.isMesh) return;
+    child.geometry.dispose();
+    if (Array.isArray(child.material)) child.material.forEach(m => m.dispose());
+    else child.material?.dispose();
+  });
+}
+
+// Parses an OFF/COFF mesh into a flat [x,y,z, x,y,z, …] triangle position list,
+// fan-triangulating any n-gon faces. Coordinates stay in OpenSCAD's native Z-up
+// frame — callers rotate for display only, never for export.
+function offToTrianglePositions(offText) {
+  const lines = offText.split('\n')
+    .map(l => l.trim())
+    .filter(l => l && !l.startsWith('#'));
+  let i = 0;
+  const hm = lines[i].match(/^C?OFF\s*(.*)/);
+  if (!hm) return null;
+  let countStr = hm[1].trim();
+  i++;
+  if (!countStr) countStr = lines[i++];
+  const [nv, nf] = countStr.split(/\s+/).map(Number);
+  if (!nv || !nf) return null;
+
+  const verts = [];
+  for (let j = 0; j < nv; j++) {
+    const p = lines[i++].split(/\s+/).map(Number);
+    verts.push(p[0], p[1], p[2]);
+  }
+
+  const positions = [];
+  for (let j = 0; j < nf; j++) {
+    const p  = lines[i++].split(/\s+/).map(Number);
+    const n  = p[0];
+    const fv = p.slice(1, n + 1);
+    for (let k = 1; k < fv.length - 1; k++) {
+      for (const vi of [fv[0], fv[k], fv[k + 1]]) {
+        const b = vi * 3;
+        positions.push(verts[b], verts[b + 1], verts[b + 2]);
+      }
+    }
+  }
+  return positions;
+}
+
+function offToMesh(offText, cssColor) {
+  const positions = offToTrianglePositions(offText);
+  if (!positions) return null;
+
+  const geo = new THREE.BufferGeometry();
+  geo.setAttribute('position', new THREE.BufferAttribute(new Float32Array(positions), 3));
+  geo.applyMatrix4(new THREE.Matrix4().makeRotationX(-Math.PI / 2)); // Z-up → Y-up (display only)
+
+  const col = new THREE.Color();
+  cssColor ? col.setStyle(cssColor) : col.setRGB(0.22, 0.55, 0.55);
+  const mat = new THREE.MeshPhongMaterial({ color: col, flatShading: true, side: THREE.DoubleSide });
+  return new THREE.Mesh(geo, mat);
+}
+
+// Frames and displays any THREE.Object3D (single Mesh or a Group, from
+// either the OFF-based worker path or a loaded STL/3MF pregen), replacing
+// whatever was shown before. Rotation/centering is read from the object's
+// full transform hierarchy, so this works the same regardless of how deep
+// any pregen loader's own internal grouping is.
+function presentGroup(group) {
+  if (currentGroup) { scene.remove(currentGroup); disposeGroup(currentGroup); }
+
+  const box    = new THREE.Box3().setFromObject(group);
+  const centre = box.getCenter(new THREE.Vector3());
+  const size   = box.getSize(new THREE.Vector3());
+  group.position.set(-centre.x, -box.min.y, -centre.z);
+
+  scene.add(group);
+  currentGroup = group;
+
+  const d = Math.max(size.x, size.y, size.z) * 3;
+  camera.position.set(d * 0.8, d * 0.6, d);
+  controls.target.set(0, size.y / 2, 0);
+  controls.update();
+}
+
+function loadParts(parts) {
+  const group = new THREE.Group();
+  for (const { off, color } of parts) {
+    const mesh = offToMesh(off, color);
+    if (mesh) group.add(mesh);
+  }
+  dbg(`[main] loaded ${group.children.length} mesh(es)`);
+  presentGroup(group);
+}
+
+// Loads a pre-generated .stl/.3mf straight into the viewer, bypassing the
+// WASM worker entirely. Both formats are Z-up like OpenSCAD's own OFF
+// export, so get the same -90°-about-X rotation offToMesh() bakes into its
+// geometry -- applied here as an object-level rotation instead, since a
+// .3mf can come back as a multi-mesh Group and rotating the container
+// handles that uniformly.
+async function loadPregenObject(url) {
+  let object3d;
+  if (url.endsWith('.stl')) {
+    const geometry = await new STLLoader().loadAsync(url);
+    const mat = new THREE.MeshPhongMaterial({ color: 0x3a8c8c, flatShading: true, side: THREE.DoubleSide });
+    object3d = new THREE.Mesh(geometry, mat);
+  } else {
+    object3d = await new ThreeMFLoader().loadAsync(url);
+  }
+  object3d.rotation.x = -Math.PI / 2;
+
+  const group = new THREE.Group();
+  group.add(object3d);
+  dbg(`[main] loaded pregen ${url}`);
+  presentGroup(group);
+}
+
+// ── Download ──────────────────────────────────────────────────────────────────
+// Re-parses an OFF into an *indexed* mesh (vertices + vertex-index
+// triangles), unlike offToTrianglePositions()'s flat per-corner list --
+// needed to write valid indexed geometry into a .3mf <mesh>.
+function offToIndexedMesh(offText) {
+  const lines = offText.split('\n')
+    .map(l => l.trim())
+    .filter(l => l && !l.startsWith('#'));
+  let i = 0;
+  const hm = lines[i].match(/^C?OFF\s*(.*)/);
+  if (!hm) return null;
+  let countStr = hm[1].trim();
+  i++;
+  if (!countStr) countStr = lines[i++];
+  const [nv, nf] = countStr.split(/\s+/).map(Number);
+  if (!nv || !nf) return null;
+
+  const vertices = [];
+  for (let j = 0; j < nv; j++) {
+    vertices.push(lines[i++].split(/\s+/).map(Number).slice(0, 3));
+  }
+
+  const triangles = [];
+  for (let j = 0; j < nf; j++) {
+    const p  = lines[i++].split(/\s+/).map(Number);
+    const n  = p[0];
+    const fv = p.slice(1, n + 1);
+    for (let k = 1; k < fv.length - 1; k++) triangles.push([fv[0], fv[k], fv[k + 1]]);
+  }
+  return { vertices, triangles };
+}
+
+// Minimal STORE-method (uncompressed) ZIP writer -- all a .3mf needs is a
+// valid OPC zip container, and STORE sidesteps pulling in a whole DEFLATE
+// implementation just for a handful of small XML files.
+function crc32(bytes) {
+  if (!crc32.table) {
+    const t = new Uint32Array(256);
+    for (let n = 0; n < 256; n++) {
+      let c = n;
+      for (let k = 0; k < 8; k++) c = (c & 1) ? (0xEDB88320 ^ (c >>> 1)) : (c >>> 1);
+      t[n] = c >>> 0;
+    }
+    crc32.table = t;
+  }
+  let crc = 0xFFFFFFFF;
+  for (let i = 0; i < bytes.length; i++) crc = crc32.table[(crc ^ bytes[i]) & 0xFF] ^ (crc >>> 8);
+  return (crc ^ 0xFFFFFFFF) >>> 0;
+}
+
+function buildZipStore(files) {
+  const enc = new TextEncoder();
+  const localChunks = [], centralChunks = [];
+  let offset = 0;
+
+  for (const { name, data } of files) {
+    const nameBytes = enc.encode(name);
+    const crc = crc32(data);
+    const size = data.length;
+
+    const local = new DataView(new ArrayBuffer(30));
+    local.setUint32(0, 0x04034b50, true);
+    local.setUint16(4, 20, true);
+    local.setUint16(6, 0, true);
+    local.setUint16(8, 0, true);   // method: 0 = store
+    local.setUint16(10, 0, true);
+    local.setUint16(12, 0, true);
+    local.setUint32(14, crc, true);
+    local.setUint32(18, size, true);
+    local.setUint32(22, size, true);
+    local.setUint16(26, nameBytes.length, true);
+    local.setUint16(28, 0, true);
+    localChunks.push(new Uint8Array(local.buffer), nameBytes, data);
+
+    const central = new DataView(new ArrayBuffer(46));
+    central.setUint32(0, 0x02014b50, true);
+    central.setUint16(4, 20, true);
+    central.setUint16(6, 20, true);
+    central.setUint16(8, 0, true);
+    central.setUint16(10, 0, true);
+    central.setUint16(12, 0, true);
+    central.setUint16(14, 0, true);
+    central.setUint32(16, crc, true);
+    central.setUint32(20, size, true);
+    central.setUint32(24, size, true);
+    central.setUint16(28, nameBytes.length, true);
+    central.setUint16(30, 0, true);
+    central.setUint16(32, 0, true);
+    central.setUint16(34, 0, true);
+    central.setUint16(36, 0, true);
+    central.setUint32(38, 0, true);
+    central.setUint32(42, offset, true);
+    centralChunks.push(new Uint8Array(central.buffer), nameBytes);
+
+    offset += 30 + nameBytes.length + size;
+  }
+
+  const centralStart = offset;
+  const centralSize = centralChunks.reduce((a, c) => a + c.length, 0);
+
+  const end = new DataView(new ArrayBuffer(22));
+  end.setUint32(0, 0x06054b50, true);
+  end.setUint16(4, 0, true);
+  end.setUint16(6, 0, true);
+  end.setUint16(8, files.length, true);
+  end.setUint16(10, files.length, true);
+  end.setUint32(12, centralSize, true);
+  end.setUint32(16, centralStart, true);
+  end.setUint16(20, 0, true);
+
+  const allChunks = [...localChunks, ...centralChunks, new Uint8Array(end.buffer)];
+  const out = new Uint8Array(allChunks.reduce((a, c) => a + c.length, 0));
+  let pos = 0;
+  for (const c of allChunks) { out.set(c, pos); pos += c.length; }
+  return out;
+}
+
+// Merges the base + plug OFF meshes into one .3mf with per-triangle
+// material color (pid/p1, same scheme OpenSCAD's own 3MF exporter uses --
+// verified against a real openscad-nightly-exported file) -- one properly
+// aligned, two-color file instead of two separate STLs the user has to
+// reposition by hand in the slicer.
+function buildInlay3mf(baseOff, plugOff) {
+  const base = offToIndexedMesh(baseOff);
+  const plug = offToIndexedMesh(plugOff);
+  const vOffset = base.vertices.length;
+  const vertices = base.vertices.concat(plug.vertices);
+  const triangles = [
+    ...base.triangles.map(([a, b, c]) => [a, b, c, 0]),
+    ...plug.triangles.map(([a, b, c]) => [a + vOffset, b + vOffset, c + vOffset, 1]),
+  ];
+
+  const vertexXml = vertices.map(([x, y, z]) => `<vertex x="${x}" y="${y}" z="${z}"/>`).join('\n');
+  const triXml = triangles.map(([a, b, c, m]) => `<triangle v1="${a}" v2="${b}" v3="${c}" pid="1" p1="${m}"/>`).join('\n');
+
+  const modelXml = `<?xml version="1.0" encoding="utf-8"?>\n` +
+    `<model xmlns="http://schemas.microsoft.com/3dmanufacturing/core/2015/02" unit="millimeter">\n` +
+    `<resources><basematerials id="1">` +
+    `<base name="Base" displaycolor="#DCDCDCFF"/>` +
+    `<base name="Plug" displaycolor="#DC143CFF"/>` +
+    `</basematerials>` +
+    `<object id="2" type="model" pid="1" pindex="0"><mesh>` +
+    `<vertices>${vertexXml}</vertices><triangles>${triXml}</triangles>` +
+    `</mesh></object></resources>` +
+    `<build><item objectid="2"/></build></model>`;
+
+  const contentTypes = `<?xml version="1.0" encoding="utf-8"?>\n` +
+    `<Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types">` +
+    `<Default Extension="model" ContentType="application/vnd.ms-package.3dmanufacturing-3dmodel+xml"/>` +
+    `<Default Extension="rels" ContentType="application/vnd.openxmlformats-package.relationships+xml"/>` +
+    `</Types>`;
+
+  const rels = `<?xml version="1.0" encoding="utf-8"?>\n` +
+    `<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">` +
+    `<Relationship Type="http://schemas.microsoft.com/3dmanufacturing/2013/01/3dmodel" Target="/3D/3dmodel.model" Id="rel0"/>` +
+    `</Relationships>`;
+
+  const enc = new TextEncoder();
+  return buildZipStore([
+    { name: '[Content_Types].xml', data: enc.encode(contentTypes) },
+    { name: '_rels/.rels', data: enc.encode(rels) },
+    { name: '3D/3dmodel.model', data: enc.encode(modelXml) },
+  ]);
+}
+
+// ASCII STL, one "solid" per triangle. Normals are computed (not left zeroed) since
+// some slicers use them for orientation sanity checks.
+function trianglesToStl(positions, name) {
+  const lines = [`solid ${name}`];
+  for (let i = 0; i < positions.length; i += 9) {
+    const [ax, ay, az, bx, by, bz, cx, cy, cz] = positions.slice(i, i + 9);
+    let nx = (by - ay) * (cz - az) - (bz - az) * (cy - ay);
+    let ny = (bz - az) * (cx - ax) - (bx - ax) * (cz - az);
+    let nz = (bx - ax) * (cy - ay) - (by - ay) * (cx - ax);
+    const len = Math.hypot(nx, ny, nz) || 1;
+    nx /= len; ny /= len; nz /= len;
+    lines.push(
+      `facet normal ${nx} ${ny} ${nz}`,
+      'outer loop',
+      `vertex ${ax} ${ay} ${az}`,
+      `vertex ${bx} ${by} ${bz}`,
+      `vertex ${cx} ${cy} ${cz}`,
+      'endloop',
+      'endfacet',
+    );
+  }
+  lines.push(`endsolid ${name}`);
+  return lines.join('\n');
+}
+
+// Pregen hits: download the static file directly, no reconstruction.
+// Pocket/flush: single STL. Inlay: one .3mf with both colors baked in
+// (per-triangle material, same scheme OpenSCAD's own 3MF exporter uses) --
+// not two STLs the user would otherwise have to reposition by hand.
+dlBtn.addEventListener('click', () => {
+  if (!lastModel) return;
+
+  if (lastModel.pregenUrl) {
+    const a = Object.assign(document.createElement('a'), {
+      href: lastModel.pregenUrl,
+      download: lastModel.pregenUrl.split('/').pop(),
+    });
+    a.click();
+    return;
+  }
+
+  const p = lastModel.params;
+  const base = p.view === 'plate'
+    ? `spelltile-plate-${p.letterSet === 'letters_english' ? 'english' : 'german'}-${p.mode}`
+    : `spelltile-${(p.letter || 'blank').replace(/[^a-zA-Z0-9]/g, '') || 'blank'}-${p.mode}`;
+
+  if (p.mode === 'inlay' && lastModel.parts.length === 2) {
+    const [{ off: baseOff }, { off: plugOff }] = lastModel.parts;
+    const zipBytes = buildInlay3mf(baseOff, plugOff);
+    const url = URL.createObjectURL(new Blob([zipBytes], { type: 'model/3mf' }));
+    Object.assign(document.createElement('a'), { href: url, download: `${base}.3mf` }).click();
+    setTimeout(() => URL.revokeObjectURL(url), 2000);
+    return;
+  }
+
+  const { off } = lastModel.parts[0];
+  const positions = offToTrianglePositions(off);
+  if (!positions || !positions.length) return;
+  const stl = trianglesToStl(positions, base);
+  const url = URL.createObjectURL(new Blob([stl], { type: 'model/stl' }));
+  Object.assign(document.createElement('a'), { href: url, download: `${base}.stl` }).click();
+  setTimeout(() => URL.revokeObjectURL(url), 2000);
+});
+
+// ── Initial render ────────────────────────────────────────────────────────────
+setStatus('Loading OpenSCAD WASM (~14 MB, cached after first visit)…', 'busy');
+triggerRender();
+</script>
+
+</body>
+</html>

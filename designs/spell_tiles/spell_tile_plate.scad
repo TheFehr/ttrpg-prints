@@ -18,14 +18,14 @@
 // NOTE: F6/render (full CGAL evaluation) is needed to see the pockets --
 // the fast F5 preview shows raw geometry without booleans applied.
 
-include <spell_tile.scad>
+use <spell_tile.scad>
 
 /* [Plate] */
 pitch = 22;
 
-// The letter distribution reconstructed from the original plate (for
-// reference / regenerating the original set).
-letters_original = [
+// English: the official SPELL letter-frequency list, taken from SPELL's own
+// "print at home" PDF (not reverse engineered -- this one's authoritative).
+letters_english = [
     "AAAAAAABBB",
     "HIIIIIIJJC",
     "HOPPPQQRKC",
@@ -39,9 +39,10 @@ letters_original = [
     "FFEEEEEEEE",
 ];
 
-// The set to print today: a word-game-style frequency distribution (16 E's
-// down to single copies of J/Q/X/Y/Z, plus 2 blanks).
-letters_today = [
+// German: an unofficial attempt at the same approach SPELL took for
+// English, adapted to German letter frequency -- not an official list.
+// 16 E's down to single copies of J/Q/X/Y/Z, plus 2 blanks.
+letters_german = [
     "EEEEEEEEEE",
     "NNNNEEEEEE",
     "NNNNNNSSSS",
@@ -55,7 +56,7 @@ letters_today = [
     "ZZPVJYXQ??",
 ];
 
-letters = letters_today;
+letters = letters_german;
 
 module spell_tile_plate(letters = letters, pitch = pitch, letter_mode = "pocket") {
     rows = len(letters);

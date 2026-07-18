@@ -1,5 +1,9 @@
 # ttrpg_prints
 
+> **Note:** This repo is built with the help of [Claude](https://claude.com/product/claude-code)
+> as an AI coding assistant. Designs are human-directed, but code, CAD
+> scripts, and docs may contain AI-generated or AI-edited content.
+
 Parametric OpenSCAD designs for TTRPG-related 3D prints. Built and rendered
 with [openscad-nightly](https://openscad.org/) (installed via snap).
 
@@ -61,21 +65,99 @@ two-color print (plugs are positioned to match their base exactly).
 Files:
 - `spell_tile.scad` — single tile, open directly in OpenSCAD for the Customizer
 - `spell_tile_plate.scad` — arrays a full letter grid at 22mm pitch; includes
-  both the reconstructed original letter distribution (`letters_original`)
-  and a word-game-style frequency set (`letters_today`, the active default —
+  the official English SPELL letter-frequency list, taken from SPELL's own
+  "print at home" PDF (`letters_english`), and an unofficial German
+  adaptation of the same approach (`letters_german`, the active default —
   16 E's down to single J/Q/X/Y/Z, plus 2 blank tiles marked `?`)
+
+**Adding a language:** the letter-frequency lists are just OpenSCAD arrays,
+and the plate layout is fully dynamic (`spell_tile_plate.scad` derives its
+row/column count from the array's own shape, not a hardcoded 10x11), so a
+new language doesn't need to match the existing grid size at all:
+
+1. Find or derive a letter-frequency distribution for the language (SPELL's
+   own list if it exists for that language, otherwise a general corpus
+   frequency table scaled to however many tiles you want, ~100-120 is
+   typical). Add it to `spell_tile_plate.scad` as `letters_<lang> = [...]`
+   — one string per row, one character per tile, `"?"` for a blank/wildcard
+   tile. Rows can be any length/count; they don't need to match
+   `letters_english`/`letters_german`.
+2. Optionally set `letters = letters_<lang>;` if you want it as the default
+   for a plain `openscad -o out.stl spell_tile_plate.scad` render.
+3. To make it selectable in the browser preview
+   (`designs/spell_tiles/preview/preview.html`),
+   add one `<option value="letters_<lang>">Label</option>` to the "Letter
+   set" dropdown — nothing else to change, `preview-worker.js` parses
+   *any* `letters_\w+ = [...]` array out of the plate file automatically.
+4. Accented/non-ASCII letters (ä, ö, ü, ß, é, ñ, …) work already — both
+   desktop `openscad-nightly` (uses the system's real DejaVu Sans Bold) and
+   the browser preview (bundles DejaVu Sans Bold too, verified to cover
+   Latin Extended, Greek, and Cyrillic) render them correctly. No font
+   changes needed.
+
+## Browser preview
+
+`designs/spell_tiles/preview/preview.html` + `preview-worker.js` is a live,
+in-browser Customizer for `spell_tiles` — set the letter (or full plate +
+letter set) and mode, see it render and rotate, download an STL. It runs
+OpenSCAD compiled to WASM in a Web Worker, fetching the real `.scad` files
+from `lib/` and `designs/spell_tiles/` directly (no separate copy to keep in
+sync). Serve the **repo root** with any static file server and open
+`/designs/spell_tiles/preview/preview.html`:
+
+```sh
+python3 -m http.server 8080
+```
+
+Because openscad-wasm ships with no font data at all, letters are rendered
+to vector outlines in JavaScript (`opentype.js` + a real webfont) and
+injected as a `polygon()` that shadows OpenSCAD's builtin `text()` module —
+`spell_tile.scad`/`pillow_tile.scad` themselves are untouched and render
+identically on the desktop.
+
+**Full-plate renders are slow in the browser:** this WASM build has no
+Manifold backend (checked — absent from both `openscad-wasm` and the
+actively-maintained `openscad-wasm-prebuilt` fork), so 110-tile boolean ops
+fall back to OpenSCAD's old CGAL exact-arithmetic kernel — 1-2 minutes per
+pass in a single-threaded Worker that can't report progress mid-pass (the
+debug log, `?debug` in the URL, timestamps each stage so a slow render is
+distinguishable from a hung one). To sidestep this for the common case,
+`designs/spell_tiles/preview/pregen/` has the 6 "expected" full plates (2 letter sets x 3 modes,
+at the default letter size/depth) pre-rendered offline with real desktop
+`openscad-nightly` (has Manifold, seconds not minutes); when the current
+settings match one exactly, the preview loads that file directly and skips
+the WASM worker entirely. Anything else (custom size/depth, single-tile
+view) still goes through the live WASM render.
+
+**Inlay downloads are a single `.3mf`, not two STLs.** A pregen inlay hit
+downloads the real desktop-generated 3MF as-is. For a live (non-pregen)
+inlay render, the two WASM-rendered meshes are merged client-side into one
+3MF with per-triangle material color (same `pid`/`p1` scheme OpenSCAD's own
+3MF exporter uses, verified byte-for-byte against a real OpenSCAD-exported
+file) — one correctly-aligned, two-color file instead of two STLs the user
+would otherwise have to reposition by hand in the slicer.
 
 Render:
 
 ```sh
-openscad-nightly -o spell_tile.stl designs/spell_tiles/spell_tile.scad
-openscad-nightly -o spell_tile_plate.stl designs/spell_tiles/spell_tile_plate.scad
+openscad-nightly --enable=textmetrics -o spell_tile.stl designs/spell_tiles/spell_tile.scad
+openscad-nightly --enable=textmetrics -o spell_tile_plate.stl designs/spell_tiles/spell_tile_plate.scad
 ```
 
 Note: openscad-nightly is snap-confined and can only read/write inside
 `$HOME` — point `-o` somewhere under your home directory, not `/tmp`. Add
 `--export-format=binstl` for a much smaller binary STL (OpenSCAD defaults to
 ASCII STL, which is ~6x larger for no benefit).
+
+`--enable=textmetrics` (or, in the GUI, ticking `textmetrics` under Edit >
+Preferences > Features) is needed for the letter to be truly centered on the
+tile: OpenSCAD's own `text(halign="center")` centers on the glyph's
+*advance* box, not its visible ink, so without this most letters render
+measurably (up to ~1mm on a 20mm tile) off-center. `spell_tile.scad`'s
+`centered_text()` uses `textmetrics()` to correct for this; if the feature
+isn't enabled, `textmetrics()` quietly returns `undef` and it falls back to
+plain (slightly off-center) `text()` — nothing breaks, it just regresses to
+that offset.
 
 The full 110-tile plate renders in a few seconds, but for actual printing
 it's usually easier to slice `spell_tile_plate.stl` directly (it's already

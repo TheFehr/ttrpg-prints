@@ -23,7 +23,27 @@
 //   "flush"  -- base+plug fused into one solid body with no visible cut,
 //       useful if you don't need the letter distinguishable at all yet.
 
-include <../../lib/pillow_tile.scad>
+use <../../lib/pillow_tile.scad>
+
+// OpenSCAD's text(halign="center", valign="center") centers on the glyph's
+// *advance* box, not its visual ink -- most letters have unequal left/right
+// side bearings (by design, in every font), so the visible letter ends up
+// measurably off-center within the tile (up to ~1.3mm on a 20mm tile for
+// letters like "J"). textmetrics() reports the real ink bounding box, so
+// re-center on that instead. Requires the `textmetrics` experimental
+// feature (Edit > Preferences > Features in the GUI, or `--enable=textmetrics`
+// on the CLI) -- without it, textmetrics() returns undef and this silently
+// falls back to plain (advance-centered) text(), so nothing breaks, it's
+// just slightly off-center. (This is also why the browser preview -- whose
+// WASM OpenSCAD build has no fonts/fontconfig at all, so textmetrics()
+// always comes back undef there -- needs no separate handling: its own
+// text() override already centers on true ink extents directly.)
+module centered_text(t, size, font) {
+    m = textmetrics(t, size = size, halign = "center", valign = "center", font = font);
+    off = (m == undef) ? [0, 0] : [m.position.x + m.size.x / 2, m.position.y + m.size.y / 2];
+    translate([-off.x, -off.y])
+        text(t, size = size, halign = "center", valign = "center", font = font);
+}
 
 /* [Tile] */
 thickness = 4;
@@ -35,7 +55,13 @@ c_end = 5.552;
 
 /* [Letter] */
 letter = "A";
-letter_size = 13;
+// 10 is the largest size at which every letter (worst case: "W", the
+// widest glyph) still fits inside the tile's pocket-eligible area (the top
+// face, the narrowest cross-section the pocket passes through: apothem
+// a_end=9.478mm, corner chamfer leg c_end=5.552mm) with margin to spare --
+// at the old default of 13, W's ink bounding box overshot the corner
+// chamfer by ~2.6mm (diagonal reach 15.99mm vs the 13.4mm available).
+letter_size = 10;
 letter_depth = 1.2;
 letter_font = "DejaVu Sans:style=Bold";
 letter_mode = "pocket"; // "pocket", "inlay", "flush"
@@ -48,8 +74,7 @@ module spell_tile_base(thickness = thickness, bevel_h = bevel_h,
         pillow_tile(thickness, bevel_h, a_mid, c_mid, a_end, c_end);
         if (letter != "" && letter != "?")
             icon_pocket(thickness, letter_depth)
-                text(letter, size = letter_size, halign = "center",
-                     valign = "center", font = letter_font);
+                centered_text(letter, letter_size, letter_font);
     }
 }
 
@@ -57,8 +82,7 @@ module spell_tile_plug(thickness = thickness, letter = letter, letter_size = let
                         letter_depth = letter_depth, letter_font = letter_font) {
     if (letter != "" && letter != "?")
         icon_plug(thickness, letter_depth)
-            text(letter, size = letter_size, halign = "center",
-                 valign = "center", font = letter_font);
+            centered_text(letter, letter_size, letter_font);
 }
 
 module spell_tile(thickness = thickness, bevel_h = bevel_h,

@@ -7,7 +7,10 @@
 *.echo
 *.png
 
-# ...except reference scans of the original designs
+# ...except reference scans of the original designs, and the browser
+# preview's pre-generated plates (real deliverables, not build scratch)
 !designs/**/reference/*.stl
+!designs/**/preview/pregen/*.stl
+!designs/**/preview/pregen/*.3mf
 
 .DS_Store
