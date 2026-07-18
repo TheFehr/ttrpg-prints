@@ -1,11 +1,17 @@
-# ttrpg_prints
+# TTRPG Prints
+
+Parametric OpenSCAD designs for TTRPG-related 3D prints. Built and rendered
+with [openscad-nightly](https://openscad.org/) (installed via snap).
+
+**Try it live:** [thefehr.github.io/ttrpg-prints](https://thefehr.github.io/ttrpg-prints/)
+— browse designs, customize them, and export an STL/3MF straight from your
+browser, no install needed.
+
+Licensed under [MIT](LICENSE).
 
 > **Note:** This repo is built with the help of [Claude](https://claude.com/product/claude-code)
 > as an AI coding assistant. Designs are human-directed, but code, CAD
 > scripts, and docs may contain AI-generated or AI-edited content.
-
-Parametric OpenSCAD designs for TTRPG-related 3D prints. Built and rendered
-with [openscad-nightly](https://openscad.org/) (installed via snap).
 
 ## Layout
 
