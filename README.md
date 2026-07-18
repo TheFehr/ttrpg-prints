@@ -72,6 +72,12 @@ Files:
   adaptation of the same approach (`letters_german`, the active default —
   16 E's down to single J/Q/X/Y/Z, plus 2 blank tiles marked `?`)
 
+SPELL is a trademark of Whimsy Machine Games; `letters_english` reuses their
+published letter distribution so these tiles stay compatible with the real
+game, but the tile geometry/mechanism here is original and this project
+isn't affiliated with or endorsed by Whimsy Machine Games. See the gallery
+for links to buy SPELL and to their own free print-at-home paper tiles.
+
 **Adding a language:** the letter-frequency lists are just OpenSCAD arrays,
 and the plate layout is fully dynamic (`spell_tile_plate.scad` derives its
 row/column count from the array's own shape, not a hardcoded 10x11), so a
