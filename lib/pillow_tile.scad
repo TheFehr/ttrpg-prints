@@ -58,26 +58,33 @@ module pillow_tile(thickness = 4, bevel_h = 1.5,
         chamfer_loft(a_mid, c_mid, a_end, c_end, bevel_h);
 }
 
-// Raised boss for an icon/text/logo on top of a pillow_tile(), for
-// single-material printing. `embed` is how far it reaches down below the
-// tile's top face (z = thickness) for adhesion; `rise` is how far it
-// protrudes above it, so the letter is actually visible/tactile in one
-// color. (In the original CAD, this is instead a separate plug solid sized
-// to sit exactly flush in a matching pocket -- flat, not raised -- meant
-// for a filament swap / dual-color print. See icon_pocket() to reproduce
-// that two-body approach.)
-module icon_boss(thickness = 4, embed = 1.4, rise = 0.6) {
-    translate([0, 0, thickness - embed])
-        linear_extrude(height = embed + rise)
-            children();
-}
-
-// Inverse of icon_boss: cuts a flush pocket into the top of the tile instead
-// of raising a boss -- matches the original's two-body pocket+plug design.
-// Use inside a difference() with pillow_tile(), then print icon_boss() as a
-// separate part (or in a different color) to plug into the resulting hole.
+// Cuts a letter-shaped pocket into the top of the tile -- matches the
+// original's two-body pocket+plug design. Use inside a difference() with
+// pillow_tile(). If left unfilled, this alone is the recommended
+// blind-draw-safe option: a shallow recess reads by sight (shadow/contrast)
+// but is far less detectable by touch than any raised boss.
 module icon_pocket(thickness = 4, depth = 2) {
     translate([0, 0, thickness - depth])
         linear_extrude(height = depth + 0.1)
+            children();
+}
+
+// The flush plug that exactly fills an icon_pocket() of the same depth --
+// no protrusion, no gap. Print in a contrasting material/color (AMS, IDEX,
+// filament swap) and it sits flush with the tile surface: visible by sight,
+// but not by touch, so it's safe for tiles drawn blind from a bag. Pair
+// with icon_pocket() cut into a matching pillow_tile() via difference().
+module icon_plug(thickness = 4, depth = 2) {
+    translate([0, 0, thickness - depth])
+        linear_extrude(height = depth)
+            children();
+}
+
+// NOT blind-draw safe -- a boss that physically protrudes above the tile
+// surface, easily identifiable by touch. Kept for other (non-blind-draw)
+// uses where a tactile/single-material raised letter is actually wanted.
+module icon_boss(thickness = 4, embed = 1.4, rise = 0.6) {
+    translate([0, 0, thickness - embed])
+        linear_extrude(height = embed + rise)
             children();
 }

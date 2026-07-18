@@ -37,14 +37,26 @@ from a mesh — but they turned out to actually be single letters, so
 `text()` for the letter, fully parametric (letter, size, font, tile
 dimensions).
 
-**Two-body original vs. this single-body version:** in the original CAD,
-each tile's letter is a *separate* solid — a 2mm-deep plug that sits exactly
-flush in a matching pocket cut into the base, clearly meant for a filament
-swap / dual-color print (flush letters aren't visible at all in a single
-color). `spell_tile.scad` instead raises the letter 0.6mm above the surface
-(embedded 1.4mm for adhesion) so it reads in a single material. The base
-module still has `icon_pocket()` if you want to reproduce the original's
-flush two-part inlay approach for multi-color printing.
+**These tiles get drawn blind out of a bag, so the letter must not be
+identifiable by touch — no raised boss.** In the original CAD, each tile's
+letter is a *separate* solid: a 2mm-deep plug that sits exactly flush in a
+matching pocket cut into the base, clearly meant for a filament swap /
+dual-color print. `letter_mode` on `spell_tile()` controls how that's
+realized here:
+
+- `"pocket"` (default) — letter engraved as a shallow recess only, no fill.
+  Single body, single material. A recess is far less detectable by touch
+  than any protrusion, so this is the safe default for blind draw.
+- `"inlay"` — base-with-pocket and a separate flush plug, shown in two
+  `color()`s (visualization only, doesn't change geometry) for a
+  multi-material printer (AMS/IDEX) or a hand-painted insert. Fully flush
+  either way — the two-color version is exactly the original's design.
+- `"flush"` — base and plug fused into one solid with no visible cut at all.
+
+`spell_tile_plate.scad` mirrors this: `spell_tile_plate()` (single plate,
+`letter_mode="pocket"` by default) for a one-material blind-safe print, or
+`spell_tile_plate_base()` / `spell_tile_plate_plug()` separately for a
+two-color print (plugs are positioned to match their base exactly).
 
 Files:
 - `spell_tile.scad` — single tile, open directly in OpenSCAD for the Customizer
