@@ -36,8 +36,11 @@
     max-width: 900px;
     margin: 0 auto 28px;
   }
+  .header-top { display: flex; align-items: baseline; justify-content: space-between; gap: 16px; }
   header h1 { font-size: 24px; font-weight: 700; margin-bottom: 6px; }
   header p  { color: var(--muted); font-size: 14px; max-width: 60ch; }
+  .gh-link { font-size: 13px; color: var(--accent); text-decoration: none; white-space: nowrap; }
+  .gh-link:hover { text-decoration: underline; }
 
   .filters {
     max-width: 900px;
@@ -124,7 +127,10 @@
 <body>
 
 <header>
-  <h1>TTRPG Prints</h1>
+  <div class="header-top">
+    <h1>TTRPG Prints</h1>
+    <a class="gh-link" href="https://github.com/TheFehr/ttrpg-prints" target="_blank" rel="noopener">GitHub ↗</a>
+  </div>
   <p>Parametric, 3D-printable props for tabletop RPGs. Each design below is
     reverse-engineered or built from scratch in OpenSCAD/CadQuery — open the
     live preview to customize and export your own STL/3MF.</p>
