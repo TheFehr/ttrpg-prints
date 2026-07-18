@@ -1,54 +1,82 @@
 // pillow_tile.scad
 //
-// Reusable "pillow edge" rounded-square tile base. Reverse engineered from
-// SpellTiles.stl by slicing the mesh at many Z heights: a 20x20x4mm tile
-// with an ~6mm corner radius, a 1.5mm sphere-radius bevel on the top and
-// bottom edges, and a 1mm flat land in the middle. Shared by any design/
-// that wants the same tactile edge profile.
+// Reusable faceted-octagon tile base, reverse engineered from the original
+// Fusion 360 model (SpellTiles.step, read exactly via OpenCascade -- every
+// face in the model is a flat plane, no curves anywhere). The footprint is
+// a chamfered square (an irregular octagon: 4 axis-aligned flat sides + 4
+// 45-degree corner chamfers), and the top/bottom edge is a two-stage flat
+// taper (chamfer down, short flat land, chamfer back up) rather than a
+// round bevel -- what reads as a soft "pillow" edge is actually 16 flat
+// facets per tile.
+//
+// Measured (110/110 tiles sampled, exact to the STEP file's B-rep, not a
+// triangulated approximation):
+//   overall size:      20 x 20 x 4mm
+//   flat core (widest): apothem 10.0mm,   corner chamfer leg 5.921mm
+//   top/bottom edge:    apothem 9.478mm,  corner chamfer leg 5.552mm
+//   bevel height:       1.5mm each (top and bottom), 1mm flat core between
 
-module rounded_square(size, r, $fn = 32) {
-    s = size / 2 - r;
-    assert(s >= 0, "rounded_square: corner radius too large for size");
-    hull()
-        for (x = [-s, s])
-            for (y = [-s, s])
-                translate([x, y]) circle(r = r, $fn = $fn);
+// A square of half-width `a` with its 4 corners cut by a 45-degree chamfer
+// of leg length `c` (so a plain square is chamfer(a, 0)).
+module chamfered_square(a, c) {
+    polygon(points = [
+        [a - c, a], [-(a - c), a], [-a, a - c], [-a, -(a - c)],
+        [-(a - c), -a], [a - c, -a], [a, -(a - c)], [a, a - c]
+    ]);
 }
 
-// A tile with a smooth "pillow" edge: a flat land in the middle, with the
-// top and bottom bevelling away with the curvature of a sphere of radius
-// bevel_r. Built as minkowski(flat rounded-square core, sphere) so the
-// curvature is a true fillet rather than a chamfer.
-module pillow_tile(size = 20, thickness = 4, corner_r = 6, bevel_r = 1.5, $fn = 32) {
-    core_h = thickness - 2 * bevel_r;
-    inner_size = size - 2 * bevel_r;
-    inner_r = corner_r - bevel_r;
-    assert(inner_r >= 0, "pillow_tile: bevel_r must be <= corner_r");
-    assert(core_h >= 0, "pillow_tile: 2*bevel_r must be <= thickness");
-
-    translate([0, 0, bevel_r])
-        minkowski() {
-            linear_extrude(height = core_h)
-                rounded_square(inner_size, inner_r, $fn = $fn);
-            sphere(r = bevel_r, $fn = $fn);
-        }
+// Straight-facet loft between two chamfered_square() cross-sections `height`
+// apart (a hull of two near-zero-height extrusions -- reproduces the
+// original's flat chamfer facets exactly, no curvature).
+module chamfer_loft(a_bottom, c_bottom, a_top, c_top, height) {
+    eps = 0.01;
+    hull() {
+        linear_extrude(height = eps)
+            chamfered_square(a_bottom, c_bottom);
+        translate([0, 0, height - eps])
+            linear_extrude(height = eps)
+                chamfered_square(a_top, c_top);
+    }
 }
 
-// Raised boss for an icon/text/logo dropped onto a pillow_tile(). `height`
-// is measured down from the tile's top face (z = thickness), so the boss is
-// always flush with the highest point of the pillow bevel, and reaches
-// `height - (thickness/2 - bevel_r)`-ish into the flat core for adhesion
-// (the default height=2 with the default tile dimensions matches the
-// original's embossed icons exactly).
-module icon_boss(thickness = 4, height = 2) {
-    translate([0, 0, thickness - height])
-        linear_extrude(height = height)
+// The tile base: bottom chamfer taper, flat core, top chamfer taper.
+// `a_mid`/`c_mid` describe the widest (flat core) cross-section; `a_end`/
+// `c_end` describe the bottom and top faces (both the same shape).
+module pillow_tile(thickness = 4, bevel_h = 1.5,
+                    a_mid = 10.0, c_mid = 5.921,
+                    a_end = 9.478, c_end = 5.552) {
+    core_h = thickness - 2 * bevel_h;
+    assert(core_h >= 0, "pillow_tile: 2*bevel_h must be <= thickness");
+
+    chamfer_loft(a_end, c_end, a_mid, c_mid, bevel_h);
+
+    translate([0, 0, bevel_h])
+        linear_extrude(height = core_h)
+            chamfered_square(a_mid, c_mid);
+
+    translate([0, 0, bevel_h + core_h])
+        chamfer_loft(a_mid, c_mid, a_end, c_end, bevel_h);
+}
+
+// Raised boss for an icon/text/logo on top of a pillow_tile(), for
+// single-material printing. `embed` is how far it reaches down below the
+// tile's top face (z = thickness) for adhesion; `rise` is how far it
+// protrudes above it, so the letter is actually visible/tactile in one
+// color. (In the original CAD, this is instead a separate plug solid sized
+// to sit exactly flush in a matching pocket -- flat, not raised -- meant
+// for a filament swap / dual-color print. See icon_pocket() to reproduce
+// that two-body approach.)
+module icon_boss(thickness = 4, embed = 1.4, rise = 0.6) {
+    translate([0, 0, thickness - embed])
+        linear_extrude(height = embed + rise)
             children();
 }
 
-// Inverse of icon_boss: engraves the 2D child into the top of the tile
-// instead of raising it. Use inside a difference() with pillow_tile().
-module icon_pocket(thickness = 4, depth = 1) {
+// Inverse of icon_boss: cuts a flush pocket into the top of the tile instead
+// of raising a boss -- matches the original's two-body pocket+plug design.
+// Use inside a difference() with pillow_tile(), then print icon_boss() as a
+// separate part (or in a different color) to plug into the resulting hole.
+module icon_pocket(thickness = 4, depth = 2) {
     translate([0, 0, thickness - depth])
         linear_extrude(height = depth + 0.1)
             children();

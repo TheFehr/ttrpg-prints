@@ -5,8 +5,8 @@
 // row (top row first), each character one tile; "?" is a blank tile (no
 // letter -- used as a wildcard in word-tile play).
 //
-// NOTE: pillow_tile()'s minkowski-based bevel is expensive to render x110 --
-// expect F5 preview to take a while and F6/render considerably longer.
+// NOTE: F6/render (full CGAL evaluation) is needed to see the letters --
+// the fast F5 preview shows raw unioned geometry without booleans applied.
 
 include <spell_tile.scad>
 
