@@ -768,11 +768,19 @@ function buildZipStore(files) {
   return out;
 }
 
-// Merges the base + plug OFF meshes into one .3mf with per-triangle
-// material color (pid/p1, same scheme OpenSCAD's own 3MF exporter uses --
-// verified against a real openscad-nightly-exported file) -- one properly
-// aligned, two-color file instead of two separate STLs the user has to
-// reposition by hand in the slicer.
+// Merges the base + plug OFF meshes into one .3mf with per-triangle color.
+//
+// This used to reference a <basematerials> resource (pid/p1, the scheme
+// OpenSCAD's own 3MF exporter uses) -- byte-for-byte correct per the core
+// 3MF spec, but Bambu Studio doesn't treat <basematerials> as multi-color
+// data at all: it silently falls back to "the 3mf is not from Bambu Lab,
+// load geometry data only" and imports one flat, uncolored object (same
+// for the openscad-nightly-generated pregen files, which use the same
+// element -- this wasn't a browser-only bug). Bambu Studio (and OrcaSlicer/
+// PrusaSlicer) DO read the 3MF *Materials and Properties Extension*'s
+// <m:colorgroup>/<m:color> instead -- structurally identical (same pid/p1
+// triangle references, just pointing at a colorgroup resource instead of a
+// basematerials one, under the extension's own namespace).
 function buildInlay3mf(baseOff, plugOff) {
   const base = offToIndexedMesh(baseOff);
   const plug = offToIndexedMesh(plugOff);
@@ -787,11 +795,12 @@ function buildInlay3mf(baseOff, plugOff) {
   const triXml = triangles.map(([a, b, c, m]) => `<triangle v1="${a}" v2="${b}" v3="${c}" pid="1" p1="${m}"/>`).join('\n');
 
   const modelXml = `<?xml version="1.0" encoding="utf-8"?>\n` +
-    `<model xmlns="http://schemas.microsoft.com/3dmanufacturing/core/2015/02" unit="millimeter">\n` +
-    `<resources><basematerials id="1">` +
-    `<base name="Base" displaycolor="#DCDCDCFF"/>` +
-    `<base name="Plug" displaycolor="#DC143CFF"/>` +
-    `</basematerials>` +
+    `<model xmlns="http://schemas.microsoft.com/3dmanufacturing/core/2015/02" ` +
+    `xmlns:m="http://schemas.microsoft.com/3dmanufacturing/material/2015/02" unit="millimeter">\n` +
+    `<resources><m:colorgroup id="1">` +
+    `<m:color color="#DCDCDCFF"/>` +
+    `<m:color color="#DC143CFF"/>` +
+    `</m:colorgroup>` +
     `<object id="2" type="model" pid="1" pindex="0"><mesh>` +
     `<vertices>${vertexXml}</vertices><triangles>${triXml}</triangles>` +
     `</mesh></object></resources>` +

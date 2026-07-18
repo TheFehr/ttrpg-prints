@@ -131,13 +131,23 @@ settings match one exactly, the preview loads that file directly and skips
 the WASM worker entirely. Anything else (custom size/depth, single-tile
 view) still goes through the live WASM render.
 
-**Inlay downloads are a single `.3mf`, not two STLs.** A pregen inlay hit
-downloads the real desktop-generated 3MF as-is. For a live (non-pregen)
-inlay render, the two WASM-rendered meshes are merged client-side into one
-3MF with per-triangle material color (same `pid`/`p1` scheme OpenSCAD's own
-3MF exporter uses, verified byte-for-byte against a real OpenSCAD-exported
-file) — one correctly-aligned, two-color file instead of two STLs the user
-would otherwise have to reposition by hand in the slicer.
+**Inlay downloads are a single `.3mf`, not two STLs.** Base and plug are
+merged into one file with per-triangle color, so it's one correctly-aligned,
+two-color file instead of two STLs the user would otherwise have to
+reposition by hand in the slicer. This uses the 3MF *Materials and
+Properties Extension*'s `<m:colorgroup>`/`<m:color>` (pid/p1 pointing at a
+colorgroup resource) — Bambu Studio, OrcaSlicer, and PrusaSlicer all read
+this for per-part filament assignment. Plain OpenSCAD `--export-format=3mf`
+instead emits a `<basematerials>` resource (correct per the core 3MF spec,
+but *not* something Bambu Studio treats as multi-color data — it silently
+falls back to "not from Bambu Lab, load geometry data only" and imports one
+flat, uncolored object), so it isn't used for inlay output anywhere: the
+live browser render builds the colorgroup `.3mf` client-side
+(`buildInlay3mf()` in `preview.html`), and the pregen inlay files are built
+by the same logic offline (`preview/pregen/build3mf.mjs`, driven by
+`preview/pregen/generate.sh` — run that script after any change to the tile
+geometry, letter sets, or letter size that should be reflected in the
+pregenerated plates).
 
 Render:
 
