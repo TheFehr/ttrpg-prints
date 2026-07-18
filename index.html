@@ -1,0 +1,320 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>TTRPG Prints</title>
+<script type="importmap">
+  {
+    "imports": {
+      "three": "https://cdn.jsdelivr.net/npm/three@0.167.0/build/three.module.js",
+      "three/addons/": "https://cdn.jsdelivr.net/npm/three@0.167.0/examples/jsm/"
+    }
+  }
+</script>
+<style>
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+  :root {
+    --bg:      #0d1117;
+    --surface: #161b22;
+    --border:  #30363d;
+    --text:    #e6edf3;
+    --muted:   #8b949e;
+    --accent:  #58a6ff;
+  }
+
+  body {
+    background: var(--bg);
+    color: var(--text);
+    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+    font-size: 14px;
+    padding: 28px 20px 60px;
+  }
+
+  header {
+    max-width: 900px;
+    margin: 0 auto 28px;
+  }
+  header h1 { font-size: 24px; font-weight: 700; margin-bottom: 6px; }
+  header p  { color: var(--muted); font-size: 14px; max-width: 60ch; }
+
+  .filters {
+    max-width: 900px;
+    margin: 0 auto 28px;
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+  }
+  .facet { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+  .facet-label {
+    font-size: 11px;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+    color: var(--muted);
+    width: 90px;
+    flex-shrink: 0;
+  }
+  .pill {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    color: var(--text);
+    border-radius: 999px;
+    padding: 5px 12px;
+    font-size: 12px;
+    cursor: pointer;
+    transition: background 0.1s, border-color 0.1s, color 0.1s;
+  }
+  .pill:hover { border-color: var(--accent); }
+  .pill.active { background: var(--accent); border-color: var(--accent); color: #0d1117; font-weight: 600; }
+
+  .grid {
+    max-width: 900px;
+    margin: 0 auto;
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(360px, 1fr));
+    gap: 18px;
+  }
+
+  .card {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    overflow: hidden;
+    display: flex;
+    flex-direction: column;
+  }
+  .card.hidden { display: none; }
+
+  .card canvas {
+    display: block;
+    width: 100%;
+    height: 220px;
+    background: #05070a;
+  }
+
+  .card-body { padding: 14px 16px 16px; display: flex; flex-direction: column; gap: 10px; }
+  .card h2 { font-size: 17px; font-weight: 600; }
+
+  .tags { display: flex; gap: 6px; flex-wrap: wrap; }
+  .tag {
+    font-size: 10px;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.03em;
+    color: var(--muted);
+    border: 1px solid var(--border);
+    border-radius: 4px;
+    padding: 2px 6px;
+  }
+
+  .blurb { color: var(--text); font-size: 13px; line-height: 1.5; }
+
+  .links { display: flex; flex-direction: column; gap: 4px; margin-top: 2px; }
+  .links a {
+    font-size: 13px;
+    color: var(--accent);
+    text-decoration: none;
+  }
+  .links a:hover { text-decoration: underline; }
+  .links a.primary { font-weight: 600; }
+</style>
+</head>
+<body>
+
+<header>
+  <h1>TTRPG Prints</h1>
+  <p>Parametric, 3D-printable props for tabletop RPGs. Each design below is
+    reverse-engineered or built from scratch in OpenSCAD/CadQuery — open the
+    live preview to customize and export your own STL/3MF.</p>
+</header>
+
+<div class="filters" id="filters"></div>
+<div class="grid" id="gallery"></div>
+
+<script type="module">
+import * as THREE from 'three';
+import { STLLoader } from 'three/addons/loaders/STLLoader.js';
+
+const DESIGNS = [
+  {
+    id: 'spell_tiles',
+    name: 'Spell Tiles',
+    game: 'SPELL',
+    audience: 'DM',
+    printType: ['Single-material', 'Multi-color (AMS)'],
+    blurb: "Letter tiles for SPELL's spellcasting word-game, reverse " +
+      "engineered from the original Fusion 360 model so the geometry is " +
+      "exact rather than approximated. Meant to be printed once by the " +
+      "DM/GM and reused at the table in place of SPELL's paper " +
+      "print-and-play tiles. Letters are recessed by default so tiles " +
+      "drawn blind from a bag can't be identified by touch.",
+    previewUrl: 'designs/spell_tiles/preview/preview.html',
+    buyUrl: 'https://whimsymachinegames.com/Spell-The-RPG-PDF-p156876312',
+    paperUrl: 'https://whimsymachinegames.com/letter-generator/',
+    thumb: 'designs/spell_tiles/preview/pregen/english-pocket.stl',
+  },
+];
+
+// ── Filters ──────────────────────────────────────────────────────────────
+const FACETS = [
+  { key: 'game',      label: 'Game' },
+  { key: 'audience',  label: 'Audience' },
+  { key: 'printType', label: 'Print type' },
+];
+
+const active = { game: new Set(), audience: new Set(), printType: new Set() };
+
+function facetValues(key) {
+  const vals = new Set();
+  for (const d of DESIGNS) {
+    const v = d[key];
+    (Array.isArray(v) ? v : [v]).forEach(x => vals.add(x));
+  }
+  return [...vals].sort();
+}
+
+function matchesFilters(d) {
+  return FACETS.every(({ key }) => {
+    if (active[key].size === 0) return true;
+    const v = d[key];
+    const vals = Array.isArray(v) ? v : [v];
+    return vals.some(x => active[key].has(x));
+  });
+}
+
+function renderFilters() {
+  const el = document.getElementById('filters');
+  el.innerHTML = '';
+  for (const { key, label } of FACETS) {
+    const values = facetValues(key);
+    if (!values.length) continue;
+    const row = document.createElement('div');
+    row.className = 'facet';
+    const lbl = document.createElement('span');
+    lbl.className = 'facet-label';
+    lbl.textContent = label;
+    row.appendChild(lbl);
+    for (const val of values) {
+      const btn = document.createElement('button');
+      btn.className = 'pill';
+      btn.textContent = val;
+      btn.addEventListener('click', () => {
+        active[key].has(val) ? active[key].delete(val) : active[key].add(val);
+        btn.classList.toggle('active');
+        applyFilters();
+      });
+      row.appendChild(btn);
+    }
+    el.appendChild(row);
+  }
+}
+
+function applyFilters() {
+  for (const d of DESIGNS) {
+    const card = document.getElementById(`card-${d.id}`);
+    card.classList.toggle('hidden', !matchesFilters(d));
+  }
+}
+
+// ── Cards + live 3D thumbnails ───────────────────────────────────────────
+const viewers = [];
+
+function renderCards() {
+  const gallery = document.getElementById('gallery');
+  for (const d of DESIGNS) {
+    const card = document.createElement('div');
+    card.className = 'card';
+    card.id = `card-${d.id}`;
+
+    const canvas = document.createElement('canvas');
+    card.appendChild(canvas);
+
+    const body = document.createElement('div');
+    body.className = 'card-body';
+
+    const allTags = [d.game, d.audience, ...(Array.isArray(d.printType) ? d.printType : [d.printType])];
+    body.innerHTML = `
+      <h2>${d.name}</h2>
+      <div class="tags">${allTags.map(t => `<span class="tag">${t}</span>`).join('')}</div>
+      <p class="blurb">${d.blurb}</p>
+      <div class="links">
+        <a class="primary" href="${d.previewUrl}">Preview &amp; customize →</a>
+        <a href="${d.buyUrl}" target="_blank" rel="noopener">Buy ${d.game} (PDF) →</a>
+        <a href="${d.paperUrl}" target="_blank" rel="noopener">Free print-at-home paper tiles →</a>
+      </div>
+    `;
+    card.appendChild(body);
+    gallery.appendChild(card);
+
+    viewers.push(makeViewer(canvas, d.thumb));
+  }
+}
+
+function makeViewer(canvas, stlUrl) {
+  const renderer = new THREE.WebGLRenderer({ canvas, antialias: true });
+  renderer.setPixelRatio(window.devicePixelRatio);
+
+  const scene = new THREE.Scene();
+  scene.background = new THREE.Color(0x05070a);
+  scene.add(new THREE.AmbientLight(0xffffff, 0.6));
+  const key = new THREE.DirectionalLight(0xffffff, 0.9);
+  key.position.set(30, 40, 20);
+  scene.add(key);
+
+  const camera = new THREE.PerspectiveCamera(45, 1, 0.1, 5000);
+  let rotatingGroup = null;
+
+  let lastW = 0, lastH = 0;
+  function resize() {
+    const w = canvas.clientWidth, h = canvas.clientHeight;
+    if (w !== lastW || h !== lastH) {
+      lastW = w; lastH = h;
+      renderer.setSize(w, h, false);
+      camera.aspect = w / h;
+      camera.updateProjectionMatrix();
+    }
+  }
+
+  new STLLoader().loadAsync(stlUrl).then(geometry => {
+    const mat = new THREE.MeshPhongMaterial({ color: 0x3a8c8c, flatShading: true, side: THREE.DoubleSide });
+    const mesh = new THREE.Mesh(geometry, mat);
+    mesh.rotation.x = -Math.PI / 2;
+
+    const group = new THREE.Group();
+    group.add(mesh);
+    scene.add(group);
+
+    const box = new THREE.Box3().setFromObject(group);
+    const centre = box.getCenter(new THREE.Vector3());
+    const size = box.getSize(new THREE.Vector3());
+    group.position.set(-centre.x, -box.min.y, -centre.z);
+
+    const d = Math.max(size.x, size.z) * 1.15;
+    camera.position.set(d * 0.55, d * 0.85, d * 0.55);
+    camera.lookAt(0, size.y / 2, 0);
+
+    rotatingGroup = group;
+  }).catch(err => console.error(`[viewer] failed to load ${stlUrl}:`, err));
+
+  return {
+    resize,
+    render() {
+      if (rotatingGroup) rotatingGroup.rotation.y += 0.006;
+      renderer.render(scene, camera);
+    },
+  };
+}
+
+(function animate() {
+  requestAnimationFrame(animate);
+  for (const v of viewers) { v.resize(); v.render(); }
+})();
+
+renderFilters();
+renderCards();
+</script>
+
+</body>
+</html>

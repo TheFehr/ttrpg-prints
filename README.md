@@ -13,6 +13,8 @@ with [openscad-nightly](https://openscad.org/) (installed via snap).
 lib/                          shared reusable OpenSCAD modules
 designs/<name>/                one folder per design
   reference/                   original source file(s) a design was reverse engineered from, if any
+  preview/                     browser-based live Customizer for this design, if any
+index.html                     top-level gallery linking to every design's preview
 ```
 
 ## Designs
