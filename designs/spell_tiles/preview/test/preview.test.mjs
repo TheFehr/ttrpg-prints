@@ -168,18 +168,26 @@ async function main() {
     assert(textareas.length === 2, `both letter grids render as <textarea> (got ${textareas.length})`);
     assert(textareas.every((len) => len > 100), `textareas are prefilled with real content (lengths: ${textareas.join(', ')})`);
 
-    console.log('=== Plate view: live render (non-default params) exercises textGlyphs.targetFsPath ===');
-    const statusBeforePitch = await page.evaluate(() => window.__spelltilesTest.getStatus());
+    console.log('=== Plate view: live render (edited grid) exercises textGlyphs.targetFsPath ===');
+    // Overriding the letters_german *textarea* to a tiny 2x2 grid (not the
+    // pitch slider) forces the same live-render / non-pregen / targetFsPath
+    // code path as a full 110-tile plate would, but in a couple of seconds
+    // instead of ~1-2 min of real CGAL work -- full-plate timing was
+    // observed to comfortably clear 3 minutes locally but not on GitHub
+    // Actions' slower shared runners, making that version of this test
+    // flaky for a CI gate without actually testing anything more.
+    const statusBeforeEdit = await page.evaluate(() => window.__spelltilesTest.getStatus());
     await page.evaluate(() => {
-      const label = [...document.querySelectorAll('#scad-form .oscw-label')].find((l) => l.textContent.trim().startsWith('pitch'));
-      const input = label.closest('.oscw-field').querySelector('input[type="range"]');
-      Object.getOwnPropertyDescriptor(window.HTMLInputElement.prototype, 'value').set.call(input, '24');
-      input.dispatchEvent(new Event('input', { bubbles: true }));
+      const textarea = [...document.querySelectorAll('#scad-form textarea')]
+        .find((t) => t.closest('.oscw-field').querySelector('.oscw-label').textContent.includes('german'));
+      const setter = Object.getOwnPropertyDescriptor(window.HTMLTextAreaElement.prototype, 'value').set;
+      setter.call(textarea, 'AB\nCD');
+      textarea.dispatchEvent(new Event('input', { bubbles: true }));
     });
-    await waitForRenderThenReady(page, statusBeforePitch, 180000); // real CGAL full-plate render, ~1-2 min
+    await waitForRenderThenReady(page, statusBeforeEdit, 30000);
     const model4 = await page.evaluate(() => window.__spelltilesTest.getLastModel());
-    assert(!model4?.pregenUrl, 'non-default pitch forces a live render, not a pregen hit');
-    assert(model4?.parts?.length === 1 && model4.parts[0].off?.length > 1000, 'live Plate render produces real, non-trivial geometry');
+    assert(!model4?.pregenUrl, 'an edited letter grid forces a live render, not a pregen hit');
+    assert(model4?.parts?.length === 1 && model4.parts[0].off?.length > 1000, 'live Plate render of the edited grid produces real, non-trivial geometry');
 
     console.log('=== page errors ===');
     assert(pageErrors.length === 0, `no console errors/pageerrors during the whole run (got: ${JSON.stringify(pageErrors)})`);
