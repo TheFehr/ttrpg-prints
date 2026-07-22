@@ -8,4 +8,4 @@
 // worker's global scope. worker.js's own internal relative import
 // (`./text-glyphs.js`) still resolves against *its own* module URL (the CDN
 // path), not this shim's, so it's unaffected.
-import 'https://cdn.jsdelivr.net/npm/openscad-customizer-web@0.2.0/dist/worker.js';
+import 'https://cdn.jsdelivr.net/npm/openscad-customizer-web@0.3.0/dist/worker.js';
