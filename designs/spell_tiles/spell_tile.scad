@@ -53,18 +53,19 @@ c_mid = 5.921;
 a_end = 9.478;
 c_end = 5.552;
 
-/* [Letter] */
-letter = "A";
-// 10 is the largest size at which every letter (worst case: "W", the
-// widest glyph) still fits inside the tile's pocket-eligible area (the top
-// face, the narrowest cross-section the pocket passes through: apothem
+// 10 is the largest size at which every letter (worst case: "W", the widest
+// glyph) still fits inside the tile's pocket-eligible area (the top face,
+// the narrowest cross-section the pocket passes through: apothem
 // a_end=9.478mm, corner chamfer leg c_end=5.552mm) with margin to spare --
 // at the old default of 13, W's ink bounding box overshot the corner
 // chamfer by ~2.6mm (diagonal reach 15.99mm vs the 13.4mm available).
-letter_size = 10;
-letter_depth = 1.2;
+
+/* [Letter] */
+letter = "A"; // Blank or "?" = no letter (wildcard tile)
+letter_size = 10; // [4:0.5:18]
+letter_depth = 1.2; // [0.4:0.1:1.8]
 letter_font = "DejaVu Sans:style=Bold";
-letter_mode = "pocket"; // "pocket", "inlay", "flush"
+letter_mode = "pocket"; // [pocket:Pocket (blind-safe),inlay:Inlay (2-color),flush:Flush]
 
 module spell_tile_base(thickness = thickness, bevel_h = bevel_h,
                         a_mid = a_mid, c_mid = c_mid, a_end = a_end, c_end = c_end,
