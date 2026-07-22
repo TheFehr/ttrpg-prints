@@ -234,3 +234,34 @@ slicer.
 Note also: `spell_tile_plate.scad`'s fast F5 preview shows raw unioned
 geometry with the boolean letter/base union *not yet applied* — use F6
 (render) or export to actually see the letters.
+
+## Testing & CI
+
+`designs/spell_tiles/preview/test/` is a headless-browser regression suite
+for the preview — it actually loads the real page (via `puppeteer-core`
+against whatever Chrome/Chromium it finds on `PATH`, no bundled-browser
+download) and asserts against real page state: initial render, `multiPass`
+inlay producing 2 colored parts, the Plate pregen bypass firing (and being
+fast), the `letter_set` dropdown/`[textarea]` fields rendering correctly,
+and a live (non-pregen) Plate render succeeding. It exists because a manual
+pass with these exact techniques caught four real bugs the first time this
+preview was wired up to openscad-customizer-web — a static/syntax check
+alone wouldn't have. Run it locally:
+
+```sh
+cd designs/spell_tiles/preview/test
+npm ci
+npm test
+```
+
+It runs in CI (`.github/workflows/test.yml`) on every PR, including
+Renovate's version-bump PRs.
+
+`renovate.json` keeps dependencies current — the usual `package.json`
+manager for `designs/spell_tiles/preview/test/`'s own dev tooling, plus a
+custom regex manager for the CDN-pinned `three`/`openscad-customizer-web`
+versions in `preview.html`/`worker-shim.js` (jsdelivr URLs aren't something
+Renovate has a built-in manager for, since there's no manifest backing
+them — the site is deliberately zero-build-step static files). PRs from it
+aren't auto-merged; the test suite above gates them, but a version bump is
+still worth a human glance before merging.

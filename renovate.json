@@ -1,0 +1,19 @@
+{
+  "$schema": "https://docs.renovatebot.com/renovate-schema.json",
+  "extends": ["config:recommended"],
+  "customManagers": [
+    {
+      "customType": "regex",
+      "description": "CDN-pinned npm package versions in jsdelivr URLs (import maps, dynamic/static imports in .html/.js) -- Renovate has no built-in manager for this since there's no package.json/lockfile backing it; the site is deliberately zero-build-step static files.",
+      "managerFilePatterns": [
+        "^designs/spell_tiles/preview/preview\\.html$",
+        "^designs/spell_tiles/preview/worker-shim\\.js$"
+      ],
+      "matchStrings": [
+        "cdn\\.jsdelivr\\.net/npm/(?<depName>[^@/]+)@(?<currentValue>[^/]+)/"
+      ],
+      "datasourceTemplate": "npm",
+      "versioningTemplate": "semver"
+    }
+  ]
+}

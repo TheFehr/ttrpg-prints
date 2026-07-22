@@ -1,0 +1,29 @@
+name: Test
+
+# Runs the headless-browser regression suite for designs/spell_tiles/preview
+# on every PR, including Renovate's version-bump PRs for the CDN-pinned
+# openscad-customizer-web/three versions (see renovate.json) -- the whole
+# point is catching a bad bump before merge, not after.
+on:
+  pull_request:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+jobs:
+  preview-tests:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 'lts/*'
+
+      - run: npm ci
+        working-directory: designs/spell_tiles/preview/test
+
+      # ubuntu-latest ships Google Chrome preinstalled -- preview.test.mjs's
+      # findChrome() picks it up automatically, no browser download needed.
+      - run: npm test
+        working-directory: designs/spell_tiles/preview/test

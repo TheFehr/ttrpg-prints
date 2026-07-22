@@ -386,6 +386,14 @@ let renderTimer = null;
 let rendering = false;
 let pendingRender = false;
 
+// Read-only hook for test/preview.test.mjs -- asserting against real page
+// state instead of scraping the human-readable debug log/status text.
+window.__spelltilesTest = {
+  getStatus: () => statusEl.textContent,
+  getLastModel: () => lastModel,
+  getView: () => currentView(),
+};
+
 // `forView` is fixed per-worker (tileWorker always renders Tile), not
 // re-derived from the DOM at message time -- if the user switches View
 // while a render is in flight, the eventual response is for a view that's

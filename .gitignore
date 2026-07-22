@@ -14,3 +14,7 @@
 !designs/**/preview/pregen/*.3mf
 
 .DS_Store
+
+# Dev-only tooling (designs/spell_tiles/preview/test/) -- not part of the
+# deployed static site.
+node_modules/

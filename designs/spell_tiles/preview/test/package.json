@@ -1,0 +1,12 @@
+{
+  "name": "spell-tiles-preview-test",
+  "private": true,
+  "type": "module",
+  "description": "Headless-browser test suite for designs/spell_tiles/preview -- not part of the deployed static site, dev-only tooling.",
+  "scripts": {
+    "test": "node preview.test.mjs"
+  },
+  "devDependencies": {
+    "puppeteer-core": "^24.0.0"
+  }
+}
