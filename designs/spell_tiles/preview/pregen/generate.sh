@@ -4,6 +4,10 @@
 # (geometry, letter_size default, letter sets, etc.) that should be
 # reflected in the pregenerated plates the browser preview serves directly.
 #
+# letter_set is a real top-level Customizer param on spell_tile_plate.scad
+# now, so selecting a language is just `-D letter_set="..."` -- no more
+# grep-extracting the letters_<lang> literal into a wrapper file.
+#
 # pocket/flush are plain single-body renders (one STL each). inlay needs a
 # real two-color .3mf: openscad-nightly's own --export-format=3mf uses a
 # <basematerials> resource that Bambu Studio doesn't recognize as multi-
@@ -16,34 +20,26 @@
 set -euo pipefail
 cd "$(dirname "${BASH_SOURCE[0]}")"
 
-PLATE_SCAD=../../spell_tile_plate.scad
-# openscad-nightly is snap-confined to $HOME -- a /tmp workdir (mktemp's
-# default) is invisible to it.
+PLATE_SCAD=$(realpath ../../spell_tile_plate.scad)
+# openscad-nightly is snap-confined to $HOME -- a /tmp workdir is invisible
+# to it.
 WORK=$(mktemp -d -p "$HOME")
 trap 'rm -rf "$WORK"' EXIT
 
 for lang in english german; do
-  letters_block=$(grep -A 13 "^letters_${lang} = " "$PLATE_SCAD")
-
   for mode in pocket flush; do
-    cat > "$WORK/${lang}-${mode}.scad" <<EOF
-use <$(realpath "$PLATE_SCAD")>
-$letters_block
-spell_tile_plate(letters = letters_${lang}, letter_mode = "${mode}");
-EOF
     echo "=== ${lang}-${mode}.stl ==="
-    openscad-nightly --enable=textmetrics --export-format=binstl \
-      -o "${lang}-${mode}.stl" "$WORK/${lang}-${mode}.scad"
+    openscad-nightly --enable=textmetrics -D "letter_set=\"${lang}\"" -D "letter_mode=\"${mode}\"" \
+      --export-format=binstl -o "${lang}-${mode}.stl" "$PLATE_SCAD"
   done
 
   for part in base plug; do
-    cat > "$WORK/${lang}-${part}.scad" <<EOF
-use <$(realpath "$PLATE_SCAD")>
-$letters_block
-spell_tile_plate_${part}(letters = letters_${lang});
-EOF
     echo "=== ${lang}-${part}.off ==="
-    openscad-nightly --enable=textmetrics \
+    cat > "$WORK/${lang}-${part}.scad" <<EOF
+use <${PLATE_SCAD}>
+spell_tile_plate_${part}();
+EOF
+    openscad-nightly --enable=textmetrics -D "letter_set=\"${lang}\"" \
       -o "$WORK/${lang}-${part}.off" "$WORK/${lang}-${part}.scad"
   done
 
